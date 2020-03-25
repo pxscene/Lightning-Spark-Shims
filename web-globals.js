@@ -2,9 +2,22 @@ const URL = require('url').URL
 // eslint-disable-next-line no-unused-vars
 const URLSearchParams = require('url').URLSearchParams
 
-const location = new URL(global.__dirname)
-
-location.search = new URLSearchParams(global.sparkQueryParams)
+const location = new Proxy(
+  (() => {
+    let _url = new URL(global.__dirname)
+    _url.search = new URLSearchParams(global.sparkQueryParams)
+    if (global.sparkHash) _url.hash = global.sparkHash
+    return _url
+  })(),
+  {
+    get: (obj, prop) => obj[prop],
+    set: (obj, prop, value) => {
+      obj[prop] = value
+      if (prop === 'hash') window.dispatchEvent(new Event('hashchange'))
+      return true
+    },
+  }
+)
 
 // eslint-disable-next-line no-unused-vars
 class Event extends String {}
@@ -31,8 +44,17 @@ const relative2absolute = url => {
 }
 
 const globalsHandler = {
-  get: function(obj, prop) {
-    return prop in obj ? obj[prop] : prop in global ? global[prop] : eval(prop)
+  get: (obj, prop) => {
+    return prop in obj
+      ? obj[prop]
+      : prop in global
+        ? global[prop]
+        : eval(`typeof ${prop} !== 'undefined' ? ${prop} : undefined`)
+  },
+  set: (obj, prop, value) => {
+    if (eval(`typeof ${prop} !== 'undefined'`)) eval(`${prop} = value`)
+    else obj[prop] = value
+    return true
   },
 }
 
@@ -103,6 +125,20 @@ const document = new Proxy(
     }
 
     getElementById() {
+      return null
+    }
+
+    querySelector(selectors) {
+      let found = selectors.match(/script\[src\*?=["'](.*)["']]/i)
+      if (found) {
+        let src = found[1]
+        if (global.bootstrap) {
+          if (global.bootstrap.applicationURL.indexOf(src) !== -1) {
+            return { getAttribute: attributeName => global.bootstrap[attributeName] }
+          }
+        }
+      }
+      console.warn(`document.querySelector(${selectors}) isn't supported`)
       return null
     }
   })(),
