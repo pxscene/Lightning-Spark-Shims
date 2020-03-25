@@ -1,0 +1,21 @@
+{
+  "name": "lightning-spark-shims",
+  "description": "",
+  "version": "1.0.0",
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "git add"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "devDependencies": {
+    "eslint": "^6.8.0",
+    "husky": "^4.2.3",
+    "lint-staged": "^10.0.9"
+  }
+}
