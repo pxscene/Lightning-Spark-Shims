@@ -4,7 +4,7 @@ const URLSearchParams = require('url').URLSearchParams
 
 const location = new Proxy(
   (() => {
-    let _url = new URL(global.__dirname)
+    let _url = new URL(global.__dirname + '/')
     _url.search = new URLSearchParams(global.sparkQueryParams)
     if (global.sparkHash) _url.hash = global.sparkHash
     return _url
