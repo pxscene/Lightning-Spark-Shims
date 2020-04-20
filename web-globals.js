@@ -36,7 +36,7 @@ class EventTarget extends require('events') {
   }
 }
 
-const relative2absolute = url => {
+const relative2absolute = (url) => {
   if (/^\/\//.test(url)) return window.location.protocol + url
   if (/^\//.test(url)) return window.location.origin + url
   if (!/^(?:https?:)/i.test(url)) return require('url').resolve(window.location.toString(), url)
@@ -45,14 +45,13 @@ const relative2absolute = url => {
 
 const globalsHandler = {
   get: (obj, prop) => {
-    return prop in obj
-      ? obj[prop]
-      : prop in global
-        ? global[prop]
-        : eval(`typeof ${prop} !== 'undefined' ? ${prop} : undefined`)
+    if (prop in obj) return obj[prop]
+    else if (prop in global) return global[prop]
+    else if (typeof prop === 'string')
+      return eval(`typeof ${prop} !== 'undefined' ? ${prop} : undefined`)
   },
   set: (obj, prop, value) => {
-    if (eval(`typeof ${prop} !== 'undefined'`)) eval(`${prop} = value`)
+    if (typeof prop === 'string' && eval(`typeof ${prop} !== 'undefined'`)) eval(`${prop} = value`)
     else obj[prop] = value
     return true
   },
@@ -117,6 +116,8 @@ const document = new Proxy(
         return new SparkScript()
       } else if (tagName === 'link') {
         return {}
+      } else if (tagName === 'video') {
+        return new SparkVideo()
       }
     }
 
@@ -134,12 +135,16 @@ const document = new Proxy(
         let src = found[1]
         if (global.bootstrap) {
           if (global.bootstrap.applicationURL.indexOf(src) !== -1) {
-            return { getAttribute: attributeName => global.bootstrap[attributeName] }
+            return { getAttribute: (attributeName) => global.bootstrap[attributeName] }
           }
         }
       }
       console.warn(`document.querySelector(${selectors}) isn't supported`)
       return null
+    }
+
+    getElementsByTagName() {
+      return []
     }
   })(),
   globalsHandler
@@ -160,7 +165,7 @@ class XMLHttpRequest extends EventTarget {
 
   send(body) {
     let self = this
-    fetch(this._URL, { method: this._method, body: body }).then(r => {
+    fetch(this._URL, { method: this._method, body: body }).then((r) => {
       self.status = r.status
       self.readyState = 4
       self.responseText = r._bodyText.toString()
@@ -197,7 +202,7 @@ class SparkScript {
 
     if (this._load) {
       let self = this
-      fetch(url).then(r => {
+      fetch(url).then((r) => {
         if (r.status >= 200 && r.status <= 299) {
           global.vm.runInThisContext(r._bodyText.toString())
           self._onloaded()
@@ -215,5 +220,175 @@ class SparkScript {
     setImmediate(() => {
       if (self._onload) self._onload()
     })
+  }
+}
+
+class SparkVideo extends EventTarget {
+  constructor() {
+    super()
+
+    let _this = this
+    this.style = {
+      set visibility(v) {
+        _this.videoEl.a = v === 'hidden' ? 0 : 1
+      },
+      set left(v) {
+        _this.videoEl.x = v
+      },
+      set top(v) {
+        _this.videoEl.y = v
+      },
+      set width(v) {
+        _this.videoEl.w = v
+      },
+      set height(v) {
+        _this.videoEl.h = v
+      },
+    }
+
+    let proxyServer = ''
+    if (global.sparkQueryParams && global.sparkQueryParams.sparkVideoProxyServer) {
+      proxyServer = global.sparkQueryParams.sparkVideoProxyServer
+    }
+    this.videoEl = global.sparkscene.create({
+      t: 'video',
+      id: 'video-player',
+      proxy: proxyServer,
+    })
+    this._registerListeners()
+
+    global.sparkscene.on('onClose', () => _this.videoEl.stop())
+  }
+
+  // ----- F u n c t i o n s
+  getAttribute(a) {
+    if (a === 'src') return this.src
+  }
+
+  setAttribute(a, v) {
+    if (a === 'src') this.src = v
+    else if (a === 'id') this.id = v
+  }
+
+  removeAttribute(a) {
+    if (a === 'src') this.videoEl.stop()
+  }
+
+  load() {}
+
+  play() {
+    this.videoEl.speed = 1
+  }
+
+  pause() {
+    this.videoEl.pause()
+  }
+
+  // ----- P r o p e r t i e s
+  get currentTime() {
+    return this.videoEl.position
+  }
+
+  set currentTime(v) {
+    this.videoEl.position = v
+  }
+
+  get duration() {
+    return this.videoEl.duration
+  }
+
+  get muted() {
+    return this.videoEl.muted
+  }
+
+  set muted(v) {
+    this.videoEl.muted = v
+  }
+
+  get loop() {
+    return this.videoEl.loop
+  }
+
+  set loop(v) {
+    this.videoEl.loop = v
+  }
+
+  get src() {
+    return this.videoEl.url
+  }
+
+  set src(v) {
+    this.videoEl.url = v
+    this.videoEl.play()
+    this.dispatchEvent('canplay')
+  }
+
+  // ----- E v e n t s
+  _supportedEvents() {
+    return ['onProgressUpdate', 'onPlaybackStarted', 'onEndOfStream', 'onPlayerStateChanged']
+  }
+
+  _registerListeners() {
+    this._supportedEvents().forEach((event) => {
+      this.videoEl.on(event, this[event].bind(this))
+    })
+  }
+
+  onEndOfStream() {
+    this.dispatchEvent('ended')
+  }
+
+  onProgressUpdate() {
+    this.dispatchEvent('timeupdate')
+  }
+
+  onPlaybackStarted() {
+    this.dispatchEvent('playing')
+    this.dispatchEvent('play')
+  }
+
+  onPlayerStateChanged(event) {
+    let prevState = this.playerState
+    this.playerState = event.state
+
+    switch (this.playerState) {
+      case 0: // IDLE
+        break
+      case 1: // INITIALIZING
+        this.dispatchEvent('loadstart')
+        break
+      case 2: // INITIALIZED
+      case 3: // PREPARING
+        break
+      case 4: // PREPARED
+        this.dispatchEvent('loadeddata')
+        break
+      case 5: // BUFFERING
+        break
+      case 6: // PAUSED
+        this.dispatchEvent('pause')
+        break
+      case 7: // SEEKING
+        this.dispatchEvent('seeking')
+        break
+      case 8: // PLAYING
+        if (prevState === 6) this.dispatchEvent('play')
+        else {
+          if (prevState === 7) this.dispatchEvent('seeked')
+          this.dispatchEvent('playing')
+        }
+        break
+      case 9: // STOPPING
+      case 10: // STOPPED
+        break
+      case 11: // COMPLETE
+        this.dispatchEvent('ended')
+        break
+      case 12: // ERROR
+        this.dispatchEvent('error')
+        break
+      case 13: // RELEASED
+        break
+    }
   }
 }
