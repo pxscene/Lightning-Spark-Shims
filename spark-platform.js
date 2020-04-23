@@ -6,6 +6,7 @@ class SparkPlatform {
     this._awaitingLoop = false
     this._sparkCanvas = null
     this._appRoot = global.sparkscene.root
+    this._supportsRequestAnimationFrame = global.sparkscene && global.sparkscene.capabilities && global.sparkscene.capabilities.sparkgl && global.sparkscene.capabilities.sparkgl.api;
     global.sparkscene.on('onClose', function () {
       _this._appRoot = null
     })
@@ -32,7 +33,11 @@ class SparkPlatform {
         self.stage.drawFrame()
         if (self.changes) {
           // We depend on blit to limit to 60fps.
-          setImmediate(lp)
+          if (self._supportsRequestAnimationFrame) {
+            requestAnimationFrame(lp);
+          } else {
+            setTimeout(lp, 32);
+          }
         } else {
           setTimeout(lp, 32)
         }
@@ -339,7 +344,9 @@ class SparkPlatform {
           const cutEy = textTextureRenderer._settings.cutEy * precision
 
           canvasInternal.label = textTextureRenderer._settings.text.slice(0, 10) + '..' // allows to distinguish different canvases by label, useful for debugging
-          canvasInternal.drawNatively = true
+          if (global.sparkQueryParams && global.sparkQueryParams.nativeText){
+            canvasInternal.drawNatively = true;
+          }
           // Set font properties.
           // textTextureRenderer.setFontProperties();
           // Total width.
