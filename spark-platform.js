@@ -31,15 +31,15 @@ class SparkPlatform {
       self._awaitingLoop = false
       if (self._looping) {
         self.stage.drawFrame()
-        if (self.changes) {
-          // We depend on blit to limit to 60fps.
-          if (self._supportsRequestAnimationFrame) {
-            requestAnimationFrame(lp);
+        // We depend on blit to limit to 60fps.
+        if (self._supportsRequestAnimationFrame) {
+          requestAnimationFrame(lp);
+        } else {
+          if (self.changes) {
+            setImmediate(lp);
           } else {
             setTimeout(lp, 32);
           }
-        } else {
-          setTimeout(lp, 32)
         }
         self._awaitingLoop = true
       }
