@@ -4,6 +4,7 @@ module.exports = {
         'es6': true,
         'node': true
     },
+    'plugins': ['prettier'],
     'extends': 'eslint:recommended',
     'globals': {
         'Atomics': 'readonly',
@@ -15,7 +16,8 @@ module.exports = {
     'rules': {
         'indent': [
             'error',
-            2
+            2,
+            { "SwitchCase": 1 }
         ],
         'linebreak-style': [
             'error',
@@ -28,6 +30,16 @@ module.exports = {
         'semi': [
             'error',
             'never'
-        ]
+        ],
+        'prettier/prettier': [
+            'error',
+            {
+                trailingComma: 'es5',
+                singleQuote: true,
+                tabWidth: 2,
+                semi: false,
+                printWidth: 100,
+            },
+        ],
     }
 }
